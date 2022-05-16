@@ -2,6 +2,7 @@ const ck = require("./ck");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const morgan = require("morgan");
 
 const LISTEN_PORT = process.env["PORT"];
 const CK_HOST = process.env["CK_HOST"];
@@ -24,6 +25,7 @@ if (ALLOWED_ORIGINS) {
 app.use(bodyParser.text());
 app.use(bodyParser.json());
 app.use(cors());
+app.use(morgan("combined"));
 
 app.post("/sql/transfer", (req, res) => {
   if (!!req.body == false || typeof req.body != "string") {
