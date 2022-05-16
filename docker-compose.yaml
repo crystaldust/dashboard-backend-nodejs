@@ -1,0 +1,24 @@
+version: '0.1'
+
+services:
+  dashboard-backend-nodejs:
+    container_name: dashboard-backend-nodejs
+    hostname: dashboard-backend-nodejs
+    image: dashboard-backend-nodejs:debug
+    restart: always
+    # 跨多个Docker-compose配置文件，services在一个网桥
+    networks:
+      - dev-network
+    environment:
+      - CK_HOST=192.168.8.21
+      - CK_PORT=18000
+      - CK_USER=querydata
+      - CK_PASS=querydata
+      - PORT=8008
+    ports:
+      - "18008:8008"
+
+
+networks:
+  dev-network:
+    external: true
