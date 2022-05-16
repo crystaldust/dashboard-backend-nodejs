@@ -1,4 +1,4 @@
-const CKClient = require("./ck");
+const ck = require("./ck");
 const express = require("express");
 const bodyParser = require("body-parser");
 
@@ -10,7 +10,7 @@ const CK_PASS = process.env["CK_PASS"];
 
 const app = express();
 
-const ckClient = new CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
+const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
 
 app.use(bodyParser.text());
 
@@ -30,11 +30,11 @@ app.post("/sql/transfer", (req, res) => {
     // But even the propery output format is set, the Int value is still a string
     // The python client automatically parses the data, check if it's done in the py code or by db
     const columns = cols.map((col, colIndex) => {
-      if (col.type.indexOf("Int") != -1) {
+      if (ck.isIntType(col.type)) {
         rows.forEach((row) => {
           row[colIndex] = parseInt(row[colIndex]);
         });
-      } else if (col.type.indexOf("Float") != -1) {
+      } else if (ck.isFloatType(col.type)) {
         rows.forEach((row) => {
           row[colIndex] = parseFloat(row[colIndex]);
         });
