@@ -13,6 +13,7 @@ const app = express();
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
 
 app.use(bodyParser.text());
+app.use(bodyParser.json());
 
 app.post("/sql/transfer", (req, res) => {
   if (!!req.body == false || typeof req.body != "string") {
@@ -44,7 +45,14 @@ app.post("/sql/transfer", (req, res) => {
     res.send([rows, columns]);
   });
 });
-
+app.post("/api/login/account", (req, res) => {
+  if (req.body.username == "admin" && req.body.password == "admin") {
+    res.status(200);
+    return res.send();
+  }
+  res.status(400);
+  return res.send();
+});
 app.listen(LISTEN_PORT, () => {
   console.log(`Example app listening on port ${LISTEN_PORT}`);
 });
