@@ -1,6 +1,7 @@
 const ck = require("./ck");
 const express = require("express");
 const bodyParser = require("body-parser");
+const cors = require("cors");
 
 const LISTEN_PORT = process.env["PORT"];
 const CK_HOST = process.env["CK_HOST"];
@@ -12,8 +13,17 @@ const app = express();
 
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
 
+const allowedOrigins = [];
+const ALLOWED_ORIGINS = process.env["ALLOWED_ORIGINS"];
+if (ALLOWED_ORIGINS) {
+  allowedOrigins.concat(ALLOWED_ORIGINS.split(","));
+  console.log("ALLOWED ORIGINS:", allowedOrigins);
+  // TODO Configure the origins
+}
+
 app.use(bodyParser.text());
 app.use(bodyParser.json());
+app.use(cors());
 
 app.post("/sql/transfer", (req, res) => {
   if (!!req.body == false || typeof req.body != "string") {
