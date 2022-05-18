@@ -1,4 +1,5 @@
 const ck = require("./ck");
+const auth = require('./auth')
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -78,11 +79,19 @@ app.post("/sql/transfer", (req, res) => {
 app.post("/api/login/account", (req, res) => {
     if (req.body.username == "admin" && req.body.password == "admin") {
         res.status(200);
-        return res.send();
+        return res.send({
+            status: 'ok',
+            type: req.body.type,
+            currentAuthority: 'admin',
+        });
     }
     res.status(400);
     return res.send();
 });
+app.get('/api/currentUser', (req, res) => {
+    res.send(auth.ADMIN_USER);
+})
+
 app.listen(LISTEN_PORT, () => {
     console.log(`Dashboard backend app listening on port ${LISTEN_PORT}`);
 });
