@@ -24,6 +24,7 @@ if (ALLOWED_ORIGINS) {
 }
 
 const downloadingRepos = []; // TODO Store the downloading repos in database
+const downloadingReposKey = {}
 
 app.use(bodyParser.text());
 app.use(bodyParser.json());
@@ -91,21 +92,34 @@ app.post("/api/login/account", (req, res) => {
 app.get("/api/currentUser", (req, res) => {
     res.send(auth.ADMIN_USER);
 });
-app.post("/repositories", (req, res) => {
-    if (!req.body.url) {
+app.post("/repository", (req, res) => {
+    const repoUrl = req.body.url
+    if (!repoUrl) {
         res.status(400);
         return res.send("");
     }
 
+    const parts = repoUrl.replace(/.git$/, '').split('/').slice(-2)
+    const owner = parts[0];
+    const repo = parts[1];
+    console.log(downloadingReposKey)
+    if(downloadingReposKey[`${owner}___${repo}`]) {
+        res.status(409)
+        return res.send('');
+    }
+
     const repoObj = {
-        url: req.body.url,
+        owner,
+        repo,
+        url: repoUrl,
         progress: 0,
     };
 
-    if (url.indexOf("github.com") != -1) {
+    if (repoUrl.indexOf("github.com") !== -1) {
         repoObj.github = true;
     }
     downloadingRepos.push(repoObj);
+    downloadingReposKey[`${owner}___${repo}`] = true;
 
     return res.send("");
 });
