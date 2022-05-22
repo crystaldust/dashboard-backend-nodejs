@@ -1,5 +1,5 @@
 const ck = require("./ck");
-const auth = require('./auth')
+const auth = require("./auth");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -23,6 +23,8 @@ if (ALLOWED_ORIGINS) {
     // TODO Configure the origins
 }
 
+const downloadingRepos = []; // TODO Store the downloading repos in database
+
 app.use(bodyParser.text());
 app.use(bodyParser.json());
 app.use(cors());
@@ -37,20 +39,20 @@ app.post("/sql/transfer", (req, res) => {
         return;
     }
 
-    const sqlOptions = {format: 'JSONCompact'}
-    if (req.header('jsonObjects') === 'true') {
-        sqlOptions.format = 'JSON'
+    const sqlOptions = { format: "JSONCompact" };
+    if (req.header("jsonObjects") === "true") {
+        sqlOptions.format = "JSON";
     }
 
     ckClient.execute_with_options(req.body, sqlOptions, (rows, cols, err) => {
         if (err) {
-            console.error(err)
-            res.status(500)
-            return res.send('Internal Server Error')
+            console.error(err);
+            res.status(500);
+            return res.send("Internal Server Error");
         }
 
-        if (sqlOptions.format === 'JSON') {
-            return res.send([rows, cols])
+        if (sqlOptions.format === "JSON") {
+            return res.send([rows, cols]);
         }
 
         // TODO Let clickhouse engine parse the data with correct type
@@ -73,24 +75,43 @@ app.post("/sql/transfer", (req, res) => {
         });
         res.send([rows, columns]);
     });
-
-
 });
 app.post("/api/login/account", (req, res) => {
     if (req.body.username == "admin" && req.body.password == "admin") {
         res.status(200);
         return res.send({
-            status: 'ok',
+            status: "ok",
             type: req.body.type,
-            currentAuthority: 'admin',
+            currentAuthority: "admin",
         });
     }
     res.status(400);
     return res.send();
 });
-app.get('/api/currentUser', (req, res) => {
+app.get("/api/currentUser", (req, res) => {
     res.send(auth.ADMIN_USER);
-})
+});
+app.post("/repositories", (req, res) => {
+    if (!req.body.url) {
+        res.status(400);
+        return res.send("");
+    }
+
+    const repoObj = {
+        url: req.body.url,
+        progress: 0,
+    };
+
+    if (url.indexOf("github.com") != -1) {
+        repoObj.github = true;
+    }
+    downloadingRepos.push(repoObj);
+
+    return res.send("");
+});
+app.get("/repositories", (req, res) => {
+    return res.send(downloadingRepos);
+});
 
 app.listen(LISTEN_PORT, () => {
     console.log(`Dashboard backend app listening on port ${LISTEN_PORT}`);
