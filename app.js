@@ -5,6 +5,9 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const morgan = require("morgan");
 
+const IS_GIT_URL_REGEX =
+    /(?:git|ssh|https?|git@[-\w.]+):(\/\/)?(.*?)(\/?|\#[-\d\w._]+?)$/;
+// /(?:git|ssh|https?|git@[-\w.]+):(\/\/)?(.*?)(\.git)(\/?|\#[-\d\w._]+?)$/;
 const LISTEN_PORT = process.env["PORT"];
 const CK_HOST = process.env["CK_HOST"];
 const CK_PORT = process.env["CK_PORT"];
@@ -24,7 +27,23 @@ if (ALLOWED_ORIGINS) {
 }
 
 const downloadingRepos = []; // TODO Store the downloading repos in database
-const downloadingReposKey = {}
+
+// Key: OWNER___REPO
+// Value: 1 downloading, 2 downloaded
+const REPO_DOWNLOADING = 1;
+const REPO_DOWNLOADED = 2;
+const downloadingReposKey = {};
+ckClient.execute_with_options(
+    "SELECT DISTINCT(search_key__owner, search_key__repo) FROM gits",
+    {},
+    (rows, cols) => {
+        rows.forEach((row) => {
+            const owner = row[0][0];
+            const repo = row[0][0];
+            downloadingReposKey[`${owner}___${repo}`] = REPO_DOWNLOADED;
+        });
+    }
+);
 
 app.use(bodyParser.text());
 app.use(bodyParser.json());
@@ -93,19 +112,20 @@ app.get("/api/currentUser", (req, res) => {
     res.send(auth.ADMIN_USER);
 });
 app.post("/repository", (req, res) => {
-    const repoUrl = req.body.url
-    if (!repoUrl) {
+    const repoUrl = req.body.url;
+    if (!repoUrl || !IS_GIT_URL_REGEX.test(repoUrl)) {
         res.status(400);
         return res.send("");
     }
 
-    const parts = repoUrl.replace(/.git$/, '').split('/').slice(-2)
+    const parts = repoUrl.replace(/.git$/, "").split("/").slice(-2);
     const owner = parts[0];
     const repo = parts[1];
-    console.log(downloadingReposKey)
-    if(downloadingReposKey[`${owner}___${repo}`]) {
-        res.status(409)
-        return res.send('');
+    const ownerRepoKey = `${owner}___${repo}`;
+    if (downloadingReposKey.hasOwnProperty(ownerRepoKey)) {
+        res.status(409);
+        res.header("repo_status", downloadingReposKey[ownerRepoKey]);
+        return res.send("");
     }
 
     const repoObj = {
@@ -119,7 +139,7 @@ app.post("/repository", (req, res) => {
         repoObj.github = true;
     }
     downloadingRepos.push(repoObj);
-    downloadingReposKey[`${owner}___${repo}`] = true;
+    downloadingReposKey[`${owner}___${repo}`] = REPO_DOWNLOADING;
 
     return res.send("");
 });
