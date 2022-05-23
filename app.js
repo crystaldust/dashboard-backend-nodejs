@@ -96,7 +96,7 @@ app.post("/sql/transfer", (req, res) => {
         res.send([rows, columns]);
     });
 });
-app.post("/api/login/account", (req, res) => {
+app.post("/login/account", (req, res) => {
     if (req.body.username == "admin" && req.body.password == "admin") {
         res.status(200);
         return res.send({
@@ -108,7 +108,7 @@ app.post("/api/login/account", (req, res) => {
     res.status(400);
     return res.send();
 });
-app.get("/api/currentUser", (req, res) => {
+app.get("/currentUser", (req, res) => {
     res.send(auth.ADMIN_USER);
 });
 app.post("/repository", (req, res) => {
