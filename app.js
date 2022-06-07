@@ -1,9 +1,12 @@
 const ck = require("./ck");
+const airflow = require("./airflow");
 const auth = require("./auth");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const morgan = require("morgan");
+const postgres = require("./postgres");
+const TrackRepoError = require("./errors").TrackRepoError;
 
 const IS_GIT_URL_REGEX =
     /(?:git|ssh|https?|git@[-\w.]+):(\/\/)?(.*?)(\/?|\#[-\d\w._]+?)$/;
@@ -18,6 +21,8 @@ const app = express();
 
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
 
+postgres.init();
+
 const allowedOrigins = [];
 const ALLOWED_ORIGINS = process.env["ALLOWED_ORIGINS"];
 if (ALLOWED_ORIGINS) {
@@ -26,13 +31,6 @@ if (ALLOWED_ORIGINS) {
     // TODO Configure the origins
 }
 
-const downloadingRepos = []; // TODO Store the downloading repos in database
-
-// Key: OWNER___REPO
-// Value: 1 downloading, 2 downloaded
-const REPO_DOWNLOADING = 1;
-const REPO_DOWNLOADED = 2;
-const downloadingReposKey = {};
 ckClient.execute_with_options(
     "SELECT DISTINCT(search_key__owner, search_key__repo) FROM gits",
     {},
@@ -40,7 +38,6 @@ ckClient.execute_with_options(
         rows.forEach((row) => {
             const owner = row[0][0];
             const repo = row[0][0];
-            downloadingReposKey[`${owner}___${repo}`] = REPO_DOWNLOADED;
         });
     }
 );
@@ -121,30 +118,76 @@ app.post("/repository", (req, res) => {
     const parts = repoUrl.replace(/.git$/, "").split("/").slice(-2);
     const owner = parts[0];
     const repo = parts[1];
-    const ownerRepoKey = `${owner}___${repo}`;
-    if (downloadingReposKey.hasOwnProperty(ownerRepoKey)) {
-        res.status(409);
-        res.header("repo_status", downloadingReposKey[ownerRepoKey]);
-        return res.send("");
-    }
 
-    const repoObj = {
-        owner,
-        repo,
-        url: repoUrl,
-        progress: 0,
-    };
+    postgres
+        .getTriggeredRepo(owner, repo)
+        .then((result) => {
+            console.log("finding ", owner, repo, result.rows);
 
-    if (repoUrl.indexOf("github.com") !== -1) {
-        repoObj.github = true;
-    }
-    downloadingRepos.push(repoObj);
-    downloadingReposKey[`${owner}___${repo}`] = REPO_DOWNLOADING;
+            if (result.rows.length > 0) {
+                throw new TrackRepoError(
+                    `${owner}/${repo} already exists`,
+                    409
+                );
+            }
 
-    return res.send("");
+            const now = new Date();
+            return airflow.runTrackGitRepo(owner, repo, repoUrl, now);
+        })
+        .then((result) => {
+            return postgres.insertTriggeredRepo(
+                "git_track_repo",
+                result.dag_run_id,
+                owner,
+                repo,
+                repoUrl
+            );
+        })
+        .then(() => {
+            res.status(200);
+            return res.send();
+        })
+        .catch((e) => {
+            console.log(`Failed to track git repo: ${e}`);
+            if (e.response) {
+                console.log(e.response.data);
+            }
+            if (e.code) {
+                res.status(e.code);
+            } else {
+                res.status(500);
+            }
+            return res.send();
+        });
 });
 app.get("/repositories", (req, res) => {
-    return res.send(downloadingRepos);
+    postgres
+        .getTriggeredRepos((downloading = true))
+        .then((result) => {
+            const returnData = result.rows.map((item) => {
+                const parsedItem = {};
+                [
+                    "owner",
+                    "repo",
+                    "url",
+                    "gits_status",
+                    "github_commits_status",
+                    "github_pull_requests_status",
+                    "github_issues_status",
+                    "github_issues_comments_status",
+                    "github_issues_timeline_status",
+                ].forEach((key) => {
+                    parsedItem[key] = item[key];
+                });
+                return parsedItem;
+            });
+            return res.send(returnData);
+        })
+        .catch((e) => {
+            console.log(e);
+            res.status(500);
+            return res.send("");
+        });
 });
 
 app.listen(LISTEN_PORT, () => {
