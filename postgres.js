@@ -1,4 +1,4 @@
-const { Client } = require("pg");
+const {Client} = require("pg");
 
 const pgClient = new Client();
 pgClient.connect();
@@ -21,12 +21,17 @@ create table if not exists triggered_git_repos
     github_issues_status               smallint,
     github_issues_comments_status      smallint,
     github_issues_timeline_status      smallint,
+        ck_transfer_status              smallint,
+        ck_aggregation_status           smallint,
+
     gits_fail_reason                   text,
     github_commits_fail_reason         text,
     github_pull_requests_fail_reason   text,
     github_issues_fail_reason          text,
     github_issues_comments_fail_reason text,
-    github_issues_timeline_fail_reason text
+    github_issues_timeline_fail_reason text,
+    ck_transfer_fail_reason text,
+    ck_aggregation_fail_reason text
 );`
         )
         .then((result) => {
@@ -36,6 +41,7 @@ create table if not exists triggered_git_repos
             console.log(e);
         });
 }
+
 function insertTriggeredRepo(dagId, dagRunId, owner, repo, url) {
     const values = [
         dagId,
@@ -56,6 +62,7 @@ function insertTriggeredRepo(dagId, dagRunId, owner, repo, url) {
 
     return pgClient.query(sql, values);
 }
+
 function getTriggeredRepos(downloading = false) {
     let sql = "select * from triggered_git_repos";
     if (downloading) {
