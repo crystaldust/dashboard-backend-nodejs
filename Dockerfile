@@ -1,7 +1,10 @@
 FROM node:lts-slim
 RUN npm install -g pm2
 WORKDIR /app
+ADD airflow.js ./
 ADD ck.js ./
+ADD errors.js ./
+ADD postgres.js ./
 ADD auth.js ./
 ADD app.js ./
 ADD package-lock.json ./
