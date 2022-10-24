@@ -16,6 +16,7 @@ const CK_HOST = process.env["CK_HOST"];
 const CK_PORT = process.env["CK_PORT"];
 const CK_USER = process.env["CK_USER"];
 const CK_PASS = process.env["CK_PASS"];
+console.log('connecting ck to ', CK_HOST)
 
 const app = express();
 
@@ -162,7 +163,7 @@ app.post("/repository", (req, res) => {
 });
 app.get("/repositories", (req, res) => {
     postgres
-        .getTriggeredRepos((downloading = true))
+        .getTriggeredRepos(true)
         .then((result) => {
             const returnData = result.rows.map((item) => {
                 const parsedItem = {};
