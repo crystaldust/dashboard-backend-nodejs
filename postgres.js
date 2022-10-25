@@ -77,7 +77,21 @@ function getTriggeredRepo(owner, repo) {
     );
 }
 
+const RES_TYPES = ["gits", "github_commits", "github_pull_requests", "github_issues",
+    "github_issues_comments", "github_issues_timeline", "ck_transfer", "ck_aggregation"]
+
+function isRepoJobSuccessful(job) {
+    for (let i = 0; i < RES_TYPES.length; ++i) {
+        const resType = RES_TYPES[i]
+        if (`${resType}_status` != 2) {
+            return false
+        }
+    }
+    return true
+}
+
 module.exports.init = init;
 module.exports.insertTriggeredRepo = insertTriggeredRepo;
 module.exports.getTriggeredRepos = getTriggeredRepos;
 module.exports.getTriggeredRepo = getTriggeredRepo;
+module.exports.isRepoJobSuccessful = isRepoJobSuccessful;

@@ -125,9 +125,9 @@ app.post("/repository", (req, res) => {
         .then((result) => {
             console.log("finding ", owner, repo, result.rows);
 
-            if (result.rows.length > 0) {
+            if (result.rows.length > 0 && postgres.isRepoJobSuccessful(result.rows[0])) {
                 throw new TrackRepoError(
-                    `${owner}/${repo} already exists`,
+                    `${owner}/${repo} already successfully initialized`,
                     409
                 );
             }
