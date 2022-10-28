@@ -158,6 +158,7 @@ function runTrackGitRepo(owner, repo, url, now) {
                         url,
                         owner,
                         repo,
+                        dag_run_id,
                     },
                 },
                 {

@@ -57,7 +57,7 @@ app.post("/sql/transfer", (req, res) => {
         return;
     }
 
-    const sqlOptions = { format: "JSONCompact" };
+    const sqlOptions = {format: "JSONCompact"};
     if (req.header("jsonObjects") === "true") {
         sqlOptions.format = "JSON";
     }
@@ -121,27 +121,52 @@ app.post("/repository", (req, res) => {
     const repo = parts[1];
 
     postgres
-        .getTriggeredRepo(owner, repo)
-        .then((result) => {
-            console.log("finding ", owner, repo, result.rows);
+        .getLastTriggeredRepo(owner, repo)
+        .then((pgResult) => {
+            console.log("finding ", owner, repo, pgResult.rows);
 
-            if (result.rows.length > 0 && postgres.isRepoJobSuccessful(result.rows[0])) {
+            const lastTriggeredJob = pgResult.rows.length > 0 ? pgResult.rows[0] : null
+
+            if (lastTriggeredJob && lastTriggeredJob.job_status != 'failed'/*postgres.isRepoJobSuccessful(result.rows[0])*/) {
                 throw new TrackRepoError(
-                    `${owner}/${repo} already successfully initialized`,
+                    `${owner}/${repo} already initialized/done, status:${pgResult.rows[0].job_status}`,
                     409
                 );
             }
 
             const now = new Date();
-            return airflow.runTrackGitRepo(owner, repo, repoUrl, now);
+            return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
+                return [lastTriggeredJob, dagResult]
+            })
         })
-        .then((result) => {
+        .then((results) => {
+            const lastJobInfo = results[0]
+            const dagResult = results[1]
+
+            // Inherit the last job's statuses
+            let lastJobStatuses = null;
+            const STATUS_KEYS = [
+                "gits_status",
+                "github_commits_status",
+                "github_pull_requests_status",
+                "github_issues_status",
+                "github_issues_comments_status",
+                "github_issues_timeline_status",
+                "ck_transfer_status",
+                "ck_aggregation_status",
+            ]
+            if (lastJobInfo) {
+                lastJobStatuses = STATUS_KEYS.map(key => {
+                    return lastJobInfo[key] === 2 ? 2 : 0;
+                })
+            }
             return postgres.insertTriggeredRepo(
                 "git_track_repo",
-                result.dag_run_id,
+                dagResult.dag_run_id,
                 owner,
                 repo,
-                repoUrl
+                repoUrl,
+                lastJobStatuses
             );
         })
         .then(() => {
@@ -163,7 +188,7 @@ app.post("/repository", (req, res) => {
 });
 app.get("/repositories", (req, res) => {
     postgres
-        .getTriggeredRepos(true)
+        .getTriggeredRepos()
         .then((result) => {
             const returnData = result.rows.map((item) => {
                 const parsedItem = {};
@@ -171,12 +196,15 @@ app.get("/repositories", (req, res) => {
                     "owner",
                     "repo",
                     "url",
+                    "job_status",
                     "gits_status",
                     "github_commits_status",
                     "github_pull_requests_status",
                     "github_issues_status",
                     "github_issues_comments_status",
                     "github_issues_timeline_status",
+                    "ck_transfer_status",
+                    "ck_aggregation_status",
                 ].forEach((key) => {
                     parsedItem[key] = item[key];
                 });

@@ -9,6 +9,7 @@ function init() {
             `
 create table if not exists triggered_git_repos
 (
+    created_at                          timestamp,
     dag_id                             text,
     dag_run_id                         text,
     owner                              text,
@@ -42,38 +43,58 @@ create table if not exists triggered_git_repos
         });
 }
 
-function insertTriggeredRepo(dagId, dagRunId, owner, repo, url) {
+function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = null) {
     const values = [
+        new Date(),
         dagId,
         dagRunId,
         owner,
         repo,
         url,
-        "started",
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        "started"
     ];
+
+    if (statuses) {
+        values.push(...statuses)
+    } else {
+        values.push(...[0, 0, 0, 0, 0, 0, 0, 0])
+    }
+
     const sql =
-        "insert into triggered_git_repos values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
+        "insert into triggered_git_repos values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)";
 
     return pgClient.query(sql, values);
 }
 
-function getTriggeredRepos(downloading = false) {
-    let sql = "select * from triggered_git_repos";
-    if (downloading) {
-        sql += " where job_status = 'started'";
-    }
+function getTriggeredRepos() {
+    // let sql = "select * from triggered_git_repos";
+    let sql = "select origin.owner,\n" +
+        "       origin.repo,\n" +
+        "       origin.created_at,\n" +
+        "       origin.job_status,\n" +
+        "       origin.job_status,\n" +
+        "       origin.gits_status,\n" +
+        "       origin.github_commits_status,\n" +
+        "       origin.github_pull_requests_status,\n" +
+        "       origin.github_issues_status,\n" +
+        "       origin.github_issues_comments_status,\n" +
+        "       origin.github_issues_timeline_status,\n" +
+        "       origin.ck_transfer_status,\n" +
+        "       origin.ck_aggregation_status\n" +
+        "from triggered_git_repos origin\n" +
+        "         join\n" +
+        "     (select owner, repo, max(created_at) as latest_created_at from triggered_git_repos group by (owner, repo)) temp\n" +
+        "     on origin.created_at = temp.latest_created_at\n" +
+        "         and origin.owner = temp.owner\n" +
+        "         and origin.repo = temp.repo\n" +
+        "         and origin.job_status != 'success'"
+
     return pgClient.query(sql);
 }
 
-function getTriggeredRepo(owner, repo) {
+function getLastTriggeredRepo(owner, repo) {
     return pgClient.query(
-        `select * from triggered_git_repos where owner='${owner}' and repo='${repo}'`
+        `select * from triggered_git_repos where owner='${owner}' and repo='${repo}' order by created_at desc limit 1`
     );
 }
 
@@ -93,5 +114,5 @@ function isRepoJobSuccessful(job) {
 module.exports.init = init;
 module.exports.insertTriggeredRepo = insertTriggeredRepo;
 module.exports.getTriggeredRepos = getTriggeredRepos;
-module.exports.getTriggeredRepo = getTriggeredRepo;
+module.exports.getLastTriggeredRepo = getLastTriggeredRepo;
 module.exports.isRepoJobSuccessful = isRepoJobSuccessful;
