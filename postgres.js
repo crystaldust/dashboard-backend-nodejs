@@ -43,7 +43,7 @@ create table if not exists triggered_git_repos
         });
 }
 
-function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = null) {
+function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0, 0, 0, 0, 0, 0, 0]) {
     const values = [
         new Date(),
         dagId,
@@ -53,12 +53,8 @@ function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = null)
         url,
         "started"
     ];
+    values.push(...statuses)
 
-    if (statuses) {
-        values.push(...statuses)
-    } else {
-        values.push(...[0, 0, 0, 0, 0, 0, 0, 0])
-    }
 
     const sql =
         "insert into triggered_git_repos values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)";
@@ -99,6 +95,14 @@ function getLastTriggeredRepo(owner, repo) {
     );
 }
 
+function numTriggeredRepos() {
+    return pgClient.query(
+        `select count(*) from triggered_git_repos where job_status = 'started'`
+    ).then(result=>{
+        return parseInt(result.rows[0].count)
+    })
+}
+
 const RES_TYPES = ["gits", "github_commits", "github_pull_requests", "github_issues",
     "github_issues_comments", "github_issues_timeline", "ck_transfer", "ck_aggregation"]
 
@@ -115,5 +119,6 @@ function isRepoJobSuccessful(job) {
 module.exports.init = init;
 module.exports.insertTriggeredRepo = insertTriggeredRepo;
 module.exports.getTriggeredRepos = getTriggeredRepos;
+module.exports.numTriggeredRepos = numTriggeredRepos;
 module.exports.getLastTriggeredRepo = getLastTriggeredRepo;
 module.exports.isRepoJobSuccessful = isRepoJobSuccessful;

@@ -20,6 +20,8 @@ console.log('connecting ck to ', CK_HOST)
 const app = express();
 
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
+const MAX_JOBS_THRESHOLD = 3;
+
 
 postgres.init();
 
@@ -133,17 +135,38 @@ app.post("/repository", (req, res) => {
                 );
             }
 
-            const now = new Date();
-            return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
-                return [lastTriggeredJob, dagResult]
+            return postgres.numTriggeredRepos().then(numTrackedRepos => {
+                return {
+                    lastTriggeredJob,
+                    numTrackedRepos
+                }
             })
         })
+        .then(results => {
+            const {lastTriggeredJob, numTrackedRepos} = results
+            if (numTrackedRepos <= MAX_JOBS_THRESHOLD) {
+                const now = new Date();
+                return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
+                    return {
+                        lastTriggeredJob,
+                        dagResult
+                    }
+                })
+            }
+
+            return {
+                lastTriggeredJob
+            }
+
+            // just insert the job(with status 'queued') into pg, waiting for the loop to fetch it and
+            //    actually run airflow DAG
+        })
         .then((results) => {
-            const lastJobInfo = results[0]
-            const dagResult = results[1]
+            const {lastJobInfo, dagResult} = results
+
 
             // Inherit the last job's statuses
-            let lastJobStatuses = null;
+
             const STATUS_KEYS = [
                 "gits_status",
                 "github_commits_status",
@@ -154,14 +177,30 @@ app.post("/repository", (req, res) => {
                 "ck_transfer_status",
                 "ck_aggregation_status",
             ]
+
+            let lastJobStatuses = STATUS_KEYS.map(() => 1)
+
+
+            // last job info should be inherited even if the job is queued
+
+            let dagRunId = ""
+            if (dagResult) {
+                dagRunId = dagResult.dag_run_id
+            } else { // DAG not run, we should create a queued
+                lastJobStatuses = STATUS_KEYS.map(() => 0)
+            }
+
             if (lastJobInfo) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
                     return lastJobInfo[key] === 2 ? 2 : 0;
                 })
             }
+
+
+
             return postgres.insertTriggeredRepo(
                 "git_track_repo",
-                dagResult.dag_run_id,
+                dagRunId,
                 owner,
                 repo,
                 repoUrl,
