@@ -70,6 +70,7 @@ function getTriggeredRepos() {
     // let sql = "select * from triggered_git_repos";
     let sql = "select origin.owner,\n" +
         "       origin.repo,\n" +
+        "       origin.url,\n" +
         "       origin.created_at,\n" +
         "       origin.job_status,\n" +
         "       origin.job_status,\n" +
