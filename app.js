@@ -133,14 +133,6 @@ app.post("/repository", (req, res) => {
                 );
             }
 
-            const now = new Date();
-            return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
-                return [lastTriggeredJob, dagResult]
-            })
-        })
-        .then((results) => {
-            const lastJobInfo = results[0]
-            const dagResult = results[1]
 
             // Inherit the last job's statuses
             let lastJobStatuses = null;
@@ -154,23 +146,30 @@ app.post("/repository", (req, res) => {
                 "ck_transfer_status",
                 "ck_aggregation_status",
             ]
-            if (lastJobInfo) {
+            if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
-                    return lastJobInfo[key] === 2 ? 2 : 0;
+                    return lastTriggeredJob[key] === 2 ? 2 : 0;
                 })
             }
+
+            const dagRunId = `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
             return postgres.insertTriggeredRepo(
                 "git_track_repo",
-                dagResult.dag_run_id,
+                dagRunId,
                 owner,
                 repo,
                 repoUrl,
                 lastJobStatuses
-            );
+            ).then(() => {
+                return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
+            })
         })
-        .then(() => {
-            res.status(200);
-            return res.send();
+        .then((triggerDagResult) => {
+            if (triggerDagResult.status >= 300) {
+                console.log('Failed to trigger AirFlow DAG', triggerDagResult.status, triggerDagResult.data)
+            }
+            res.status(triggerDagResult.status)
+            res.send()
         })
         .catch((e) => {
             console.log(`Failed to track git repo: ${e}`);
