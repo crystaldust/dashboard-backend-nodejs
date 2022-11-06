@@ -52,9 +52,8 @@ function check() {
             return postgres.client.query(`SELECT owner, repo, url FROM triggered_git_repos WHERE job_status='queued' ORDER BY created_at DESC LIMIT 1`).then(result => {
                 if (result.rows.length) {
                     const row = result.rows[0]
-                    const {owner, repo, url: repoUrl} = row;
-                    const now = new Date();
-                    return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
+                    const {owner, repo, url: repoUrl, dag_run_id: dagRunId} = row;
+                    return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId).then(dagResult => {
                         const {owner, repo, dag_run_id: dagRunId} = dagResult.data.conf;
                         // TODO Maybe we should generate a place holder uuid for the dag_run_id field?
                         return postgres.client.query(`
@@ -127,5 +126,7 @@ function stop() {
     }
 }
 
-exports.launch = launch;
-exports.MAX_JOBS_THRESHOLD = MAX_JOBS_THRESHOLD;
+module.exports.launch = launch;
+module.exports.checkConditions = checkConditions;
+module.exports.checkStartedJobs = checkStartedJobs;
+module.exports.MAX_JOBS_THRESHOLD = MAX_JOBS_THRESHOLD;

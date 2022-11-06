@@ -142,35 +142,21 @@ app.post("/repository", (req, res) => {
                 );
             }
 
-            return postgres.numTriggeredRepos().then(numTrackedRepos => {
+            // Check conditions, if pass, inherits states, mark job_status as 'started'(failed state =>1 as started), then trigger the DAG
+            // if not passed, also inherits states, mark job_status as 'queueed'(failed state =>0 as created/queued). then do nothing(waiting for
+            // the polling to monitor and trigger the DAGs someday)
+            return jobqueue.checkConditions([[]], [jobqueue.checkStartedJobs]).then(passed => {
                 return {
+                    conditionsSatisfied: passed,
                     lastTriggeredJob,
-                    numTrackedRepos
                 }
             })
         })
         .then(results => {
-            const {lastTriggeredJob, numTrackedRepos} = results
-            if (numTrackedRepos <= jobqueue.MAX_JOBS_THRESHOLD) {
-                const now = new Date();
-                return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
-                    return {
-                        lastTriggeredJob,
-                        dagResult
-                    }
-                })
-            }
-
-            return {
-                lastTriggeredJob
-            }
-
-            // just insert the job(with status 'queued') into pg, waiting for the loop to fetch it and
-            //    actually run airflow DAG
-        })
-        .then((results) => {
-            const {lastTriggeredJob, dagResult} = results
-            // Inherit the last job's statuses
+            const {conditionsSatisfied, lastTriggeredJob} = results;
+            let lastJobStatuses = STATUS_KEYS.map(() => 0)
+            let jobStatus = conditionsSatisfied ? 'started' : 'queued';
+            const dagRunId = `git_track_repo_${owner}__${repo}__${now.toISOString()}`;
 
             const STATUS_KEYS = [
                 "gits_status",
@@ -183,40 +169,36 @@ app.post("/repository", (req, res) => {
                 "ck_aggregation_status",
             ]
 
-            let lastJobStatuses = STATUS_KEYS.map(() => 1)
-
-
-            // last job info should be inherited even if the job is queued
-
-            let dagRunId = ""
-            let jobStatus = "started"
-            if (dagResult) {
-                dagRunId = dagResult.dag_run_id
-            } else { // DAG not run, we should create a queued
-                lastJobStatuses = STATUS_KEYS.map(() => 0)
-                jobStatus = "queued"
-            }
-
             if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
                     return lastTriggeredJob[key] === STATUS_SUCCESS
                         ? STATUS_SUCCESS
-                        : (dagResult ? STATUS_STARTED : STATUS_QUEUED);
+                        : (conditionsSatisfied ? STATUS_STARTED : STATUS_QUEUED);
                 })
             }
 
+            const promises = [
+                postgres.insertTriggeredRepo(
+                    "git_track_repo",
+                    dagRunId,
+                    owner,
+                    repo,
+                    repoUrl,
+                    lastJobStatuses,
+                    jobStatus)
+            ];
 
-            return postgres.insertTriggeredRepo(
-                "git_track_repo",
-                dagRunId,
-                owner,
-                repo,
-                repoUrl,
-                lastJobStatuses,
-                jobStatus,
-            );
+            if (conditionsSatisfied) {
+                promises.push(
+                    airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
+                )
+            }
+
+            return Promise.all(promises);
         })
-        .then(() => {
+        .then((results) => {
+            // TODO Instead of just logging, maybe we should also change status_code by results
+            console.log(results);
             res.status(200);
             return res.send();
         })
