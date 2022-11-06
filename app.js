@@ -1,6 +1,7 @@
 const ck = require("./ck");
 const airflow = require("./airflow");
 const auth = require("./auth");
+const jobqueue = require('./jobqueue')
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -20,10 +21,16 @@ console.log('connecting ck to ', CK_HOST)
 const app = express();
 
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
-const MAX_JOBS_THRESHOLD = 3;
+const STATUS_QUEUED = 0;
+const STATUS_STARTED = 1;
+const STATUS_SUCCESS = 2;
+const STATUS_FAILED = 3;
 
 
-postgres.init();
+postgres.init().then(() => {
+    jobqueue.launch();
+})
+
 
 const allowedOrigins = [];
 const ALLOWED_ORIGINS = process.env["ALLOWED_ORIGINS"];
@@ -144,7 +151,7 @@ app.post("/repository", (req, res) => {
         })
         .then(results => {
             const {lastTriggeredJob, numTrackedRepos} = results
-            if (numTrackedRepos <= MAX_JOBS_THRESHOLD) {
+            if (numTrackedRepos <= jobqueue.MAX_JOBS_THRESHOLD) {
                 const now = new Date();
                 return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
                     return {
@@ -162,9 +169,7 @@ app.post("/repository", (req, res) => {
             //    actually run airflow DAG
         })
         .then((results) => {
-            const {lastJobInfo, dagResult} = results
-
-
+            const {lastTriggeredJob, dagResult} = results
             // Inherit the last job's statuses
 
             const STATUS_KEYS = [
@@ -184,18 +189,21 @@ app.post("/repository", (req, res) => {
             // last job info should be inherited even if the job is queued
 
             let dagRunId = ""
+            let jobStatus = "started"
             if (dagResult) {
                 dagRunId = dagResult.dag_run_id
             } else { // DAG not run, we should create a queued
                 lastJobStatuses = STATUS_KEYS.map(() => 0)
+                jobStatus = "queued"
             }
 
-            if (lastJobInfo) {
+            if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
-                    return lastJobInfo[key] === 2 ? 2 : 0;
+                    return lastTriggeredJob[key] === STATUS_SUCCESS
+                        ? STATUS_SUCCESS
+                        : (dagResult ? STATUS_STARTED : STATUS_QUEUED);
                 })
             }
-
 
 
             return postgres.insertTriggeredRepo(
@@ -204,7 +212,8 @@ app.post("/repository", (req, res) => {
                 owner,
                 repo,
                 repoUrl,
-                lastJobStatuses
+                lastJobStatuses,
+                jobStatus,
             );
         })
         .then(() => {

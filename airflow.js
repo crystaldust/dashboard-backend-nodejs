@@ -1,5 +1,5 @@
-const { default: axios } = require("axios");
-const { rejects } = require("assert");
+const {default: axios} = require("axios");
+const {rejects} = require("assert");
 
 // TODO Use suitable auth method
 const AIRFLOW_API_URL = process.env["AIRFLOW_API_URL"];
@@ -146,6 +146,20 @@ function runGithubPRsDAG(owner, repo, url, now) {
     );
 }
 
+function getVariable(variableName) {
+    return axios.get(
+        `${AIRFLOW_API_URL}/api/v1/variables/${variableName}`,
+        {
+            auth: {
+                username: AIRFLOW_USER,
+                password: AIRFLOW_PASSWORD,
+            },
+        }
+    ).then(result => {
+        return result.value
+    })
+}
+
 function runTrackGitRepo(owner, repo, url, now) {
     return new Promise((resolve, reject) => {
         const dag_run_id = `git_track_repo_${owner}__${repo}__${now.toISOString()}`;
@@ -179,3 +193,4 @@ function runTrackGitRepo(owner, repo, url, now) {
 }
 
 module.exports.runTrackGitRepo = runTrackGitRepo;
+module.exports.getVariable = getVariable;
