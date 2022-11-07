@@ -154,10 +154,6 @@ app.post("/repository", (req, res) => {
         })
         .then(results => {
             const {conditionsSatisfied, lastTriggeredJob} = results;
-            let lastJobStatuses = STATUS_KEYS.map(() => 0)
-            let jobStatus = conditionsSatisfied ? 'started' : 'queued';
-            const dagRunId = `git_track_repo_${owner}__${repo}__${now.toISOString()}`;
-
             const STATUS_KEYS = [
                 "gits_status",
                 "github_commits_status",
@@ -168,6 +164,11 @@ app.post("/repository", (req, res) => {
                 "ck_transfer_status",
                 "ck_aggregation_status",
             ]
+            let lastJobStatuses = STATUS_KEYS.map(() => 0)
+            let jobStatus = conditionsSatisfied ? 'started' : 'queued';
+            const dagRunId = `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
+
+
 
             if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {

@@ -1,5 +1,5 @@
 const MAX_JOBS_THRESHOLD = 1;
-const MONITOR_INTERVAL = 60 * 5;
+const MONITOR_INTERVAL = 6000 * 1;
 
 
 const postgres = require('./postgres')
@@ -19,8 +19,8 @@ function checkStartedJobs() {
     return postgres.client.query("SELECT count(*) from triggered_git_repos WHERE job_status='started'")
         .then(result => {
             let numStartedJobs = 0
-            if (result && result.length) {
-                numStartedJobs = result[0].count
+            if (result && result.rows.length) {
+                numStartedJobs = parseInt(result.rows[0].count)
             }
             return numStartedJobs < MAX_JOBS_THRESHOLD
         })
@@ -53,18 +53,30 @@ function check() {
                 if (result.rows.length) {
                     const row = result.rows[0]
                     const {owner, repo, url: repoUrl, dag_run_id: dagRunId} = row;
-                    return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId).then(dagResult => {
-                        const {owner, repo, dag_run_id: dagRunId} = dagResult.data.conf;
-                        // TODO Maybe we should generate a place holder uuid for the dag_run_id field?
-                        return postgres.client.query(`
+
+                    return postgres.client.query(`
                                     update triggered_git_repos
                                     set dag_run_id = '${dagRunId}',
                                         job_status='started'
                                     where owner = '${owner}'
                                       and repo = '${repo}'
                                       and dag_run_id = ''
-                                    `)
+                                    `).then(()=>{
+                        airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
                     })
+
+                    // return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId).then(dagResult => {
+                    //     const {owner, repo, dag_run_id: dagRunId} = dagResult.data.conf;
+                    //     // TODO Maybe we should generate a place holder uuid for the dag_run_id field?
+                    //     return postgres.client.query(`
+                    //                 update triggered_git_repos
+                    //                 set dag_run_id = '${dagRunId}',
+                    //                     job_status='started'
+                    //                 where owner = '${owner}'
+                    //                   and repo = '${repo}'
+                    //                   and dag_run_id = ''
+                    //                 `)
+                    // })
                 }
             })
         }
@@ -117,7 +129,7 @@ function check() {
 }
 
 function launch() {
-    interval = setInterval(check, MONITOR_INTERVAL)
+    // interval = setInterval(check, MONITOR_INTERVAL)
 }
 
 function stop() {
