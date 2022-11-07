@@ -1,17 +1,32 @@
-const MAX_JOBS_THRESHOLD = 1;
-const MONITOR_INTERVAL = 6000 * 1;
+const MAX_JOBS_THRESHOLD = 2;
+const MONITOR_INTERVAL = 1000 * 60 * 1;
+const MIN_TOKEN_LIMIT = 20000
 
 
 const postgres = require('./postgres')
 const airflow = require("./airflow");
+const github = require('./github')
 
 let interval = null;
 
 
-function checkTokens(owner, repo, githubTokens) {
+function checkTokens() {
     // TODO Check {owner}/{repo}'s commits, PR, issuse numbers and tokens' remaining times
     // Then decide if we should wait or start the job
-    return true
+    return airflow.getVariable('github_tokens').then(tokensStrVal => {
+        const tokens = JSON.parse(tokensStrVal)
+        const checkPromises = tokens.map(token => github.getTokenLimit(token))
+        return Promise.all(checkPromises).then(rates => {
+            let totalLimit = 0
+            console.debug(JSON.stringify(rates, null, 2))
+            rates.map(rate => totalLimit += rate.limit || 0)
+            console.debug(totalLimit)
+            return totalLimit >= MIN_TOKEN_LIMIT
+        }).catch(e => {
+            console.log('Failed to get token limits:', e)
+            return false
+        })
+    })
 }
 
 function checkStartedJobs() {
@@ -36,6 +51,7 @@ function checkConditions(paramLists, checkers) {
     })
 
     return Promise.all(conditionChain).then(results => {
+        console.log('check conditions:', results, paramLists, checkers)
         for (let i = 0; i < results.length; ++i) {
             if (results[i] == false) {
                 return false;
@@ -47,22 +63,45 @@ function checkConditions(paramLists, checkers) {
 
 
 function check() {
-    checkConditions([[]], [checkStartedJobs]).then(conditionsPassed => {
+    checkConditions([[], []], [checkStartedJobs, checkTokens]).then(conditionsPassed => {
         if (conditionsPassed) {
-            return postgres.client.query(`SELECT owner, repo, url FROM triggered_git_repos WHERE job_status='queued' ORDER BY created_at DESC LIMIT 1`).then(result => {
+            const STATUS_KEYS = [
+                "gits_status",
+                "github_commits_status",
+                "github_pull_requests_status",
+                "github_issues_status",
+                "github_issues_comments_status",
+                "github_issues_timeline_status",
+                "ck_transfer_status",
+                "ck_aggregation_status",
+            ]
+            const selectedField = ['owner', 'repo', 'url', 'dag_run_id'].concat(STATUS_KEYS)
+            const pickQueueJobSql = `SELECT ${selectedField.join(', ')} FROM triggered_git_repos
+                                                WHERE job_status='queued' ORDER BY created_at LIMIT 1`;
+            return postgres.client.query(pickQueueJobSql).then(result => {
                 if (result.rows.length) {
                     const row = result.rows[0]
                     const {owner, repo, url: repoUrl, dag_run_id: dagRunId} = row;
+                    // It's better to update the 'queued' statuses to 'started'
+                    // TODO What about the failed jobs? should they be restarted by this code?
+                    let sql = `update triggered_git_repos
+                        set job_status='started'
+                        `
 
-                    return postgres.client.query(`
-                                    update triggered_git_repos
-                                    set dag_run_id = '${dagRunId}',
-                                        job_status='started'
-                                    where owner = '${owner}'
-                                      and repo = '${repo}'
-                                      and dag_run_id = ''
-                                    `).then(()=>{
-                        airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
+                    // or == 0, since it's queued?
+                    const updatedStatuses = STATUS_KEYS.filter(key => row[key] != 2).map(key => `${key} = 1`)
+                    if (updatedStatuses.length) {
+                        sql += ',\n' + updatedStatuses.join(',\n')
+                    }
+
+                    sql += `
+                    where owner = '${owner}'
+                        and repo = '${repo}'
+                        and dag_run_id = '${dagRunId}'
+                    `
+                    console.log(`update ${owner}/${repo} ${dagRunId}, set ${updatedStatuses}`)
+                    return postgres.client.query(sql).then(() => {
+                        return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
                     })
 
                     // return airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId).then(dagResult => {
@@ -129,7 +168,7 @@ function check() {
 }
 
 function launch() {
-    // interval = setInterval(check, MONITOR_INTERVAL)
+    interval = setInterval(check, MONITOR_INTERVAL)
 }
 
 function stop() {

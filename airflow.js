@@ -156,7 +156,7 @@ function getVariable(variableName) {
             },
         }
     ).then(result => {
-        return result.value
+        return result.data.value
     })
 }
 
