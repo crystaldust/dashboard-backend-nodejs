@@ -11,6 +11,17 @@ function getTokenLimit(token) {
         },
     ).then(result => {
         return result.data.rate
+    }).catch(error=>{
+        console.log('Failed to check token limit')
+        if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            console.log(error.response.data);
+            console.log(error.response.status);
+        } else {
+            // Something happened in setting up the request that triggered an Error
+            console.log('Error', error.message);
+        }
     })
 }
 

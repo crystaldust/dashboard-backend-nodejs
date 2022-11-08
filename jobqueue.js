@@ -1,5 +1,5 @@
 const MAX_JOBS_THRESHOLD = 2;
-const MONITOR_INTERVAL = 1000 * 60 * 1;
+const MONITOR_INTERVAL = 1000 * 60 * 10;
 const MIN_TOKEN_LIMIT = 20000
 
 
@@ -19,7 +19,7 @@ function checkTokens() {
         return Promise.all(checkPromises).then(rates => {
             let totalLimit = 0
             console.debug(JSON.stringify(rates, null, 2))
-            rates.map(rate => totalLimit += rate.limit || 0)
+            rates.map(rate => totalLimit += (rate && rate.limit) || 0)
             console.debug(totalLimit)
             return totalLimit >= MIN_TOKEN_LIMIT
         }).catch(e => {
