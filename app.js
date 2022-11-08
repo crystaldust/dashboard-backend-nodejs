@@ -10,7 +10,7 @@ const postgres = require("./postgres");
 const TrackRepoError = require("./errors").TrackRepoError;
 
 const IS_GIT_URL_REGEX =
-    /(git:\/\/|git@|http:\/\/|https:\/\/)[.0-9a-zA-Z_-~:]+[\/:]{1}[0-9a-zA-Z_\-~]+\/{1}[0-9a-zA-Z_\-~.]+(.git){0,1}$/
+    /(git:\/\/|git@|http:\/\/|https:\/\/)[.0-9a-zA-Z_\-~:]+[\/:]{1}[0-9a-zA-Z_\-~]+\/{1}[0-9a-zA-Z_\-~.]+(.git){0,1}$/
 const LISTEN_PORT = process.env["PORT"];
 const CK_HOST = process.env["CK_HOST"];
 const CK_PORT = process.env["CK_PORT"];
