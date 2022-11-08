@@ -1,6 +1,6 @@
 const MAX_JOBS_THRESHOLD = 2;
 const MONITOR_INTERVAL = 1000 * 60 * 10;
-const MIN_TOKEN_LIMIT = 20000
+const MIN_TOKEN_RATE_REMAINING = 20000
 
 
 const postgres = require('./postgres')
@@ -15,13 +15,13 @@ function checkTokens() {
     // Then decide if we should wait or start the job
     return airflow.getVariable('github_tokens').then(tokensStrVal => {
         const tokens = JSON.parse(tokensStrVal)
-        const checkPromises = tokens.map(token => github.getTokenLimit(token))
+        const checkPromises = tokens.map(token => github.getTokenRemaining(token))
         return Promise.all(checkPromises).then(rates => {
-            let totalLimit = 0
+            let totalRemaining = 0
             console.debug(JSON.stringify(rates, null, 2))
-            rates.map(rate => totalLimit += (rate && rate.limit) || 0)
-            console.debug(totalLimit)
-            return totalLimit >= MIN_TOKEN_LIMIT
+            rates.map(rate => totalRemaining += (rate && rate.remaining) || 0)
+            console.debug(totalRemaining)
+            return totalRemaining >= MIN_TOKEN_RATE_REMAINING
         }).catch(e => {
             console.log('Failed to get token limits:', e)
             return false

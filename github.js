@@ -1,6 +1,6 @@
 const {default: axios} = require("axios");
 
-function getTokenLimit(token) {
+function getTokenRemaining(token) {
     // http://api.github.com/rate_limit
     return axios.get(
         'http://api.github.com/rate_limit',
@@ -31,4 +31,4 @@ function getNumPullRequests(owner, repo) {
     return 100
 }
 
-module.exports.getTokenLimit = getTokenLimit;
+module.exports.getTokenRemaining = getTokenRemaining;
