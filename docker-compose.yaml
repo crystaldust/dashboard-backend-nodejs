@@ -4,16 +4,27 @@ services:
   dashboard-backend-nodejs:
     container_name: dashboard-backend-nodejs
     hostname: dashboard-backend-nodejs
-    image: dashboard-backend-nodejs:dev
+    image: ossknow/dashboard-backend-nodejs:latest
     restart: always
     # 跨多个Docker-compose配置文件，services在一个网桥
     networks:
       - dev-network
     environment:
-      - CK_HOST=192.168.8.21
-      - CK_PORT=18000
-      - CK_USER=querydata
-      - CK_PASS=querydata
+      - AIRFLOW_API_URL="http://YOUR_AIRFLOW_SERVER:8080"
+      - AIRFLOW_USER=YOUR_AIRFLOW_USER
+      - AIRFLOW_PASSWORD=YOUR_AIRFLOW_PASSWORD
+
+      - CK_HOST=YOUR_CLICKHOUSE_HOST
+      - CK_PORT=YOUR_CLICKHOUSE_PORT
+      - CK_USER=YOUR_CLICKHOUSE_USER
+      - CK_PASS=YOUR_CLICKHOUSE_PASSOWRD
+
+      - PGHOST=YOUR_POSTGRES_DB_HOST
+      - PGPORT=5432
+      - PGDATABASE=YOUR_POSTGRES_DB_NAME
+      - PGPASSWORD=YOUR_POSTGRES_DB_PWD
+      - PGUSER=YOUR_POSTGRES_DB_USER
+
       - PORT=8008
     ports:
       - "18008:8008"
