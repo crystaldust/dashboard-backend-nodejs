@@ -1,3 +1,4 @@
+const uuid = require('uuid')
 const ck = require("./ck");
 const airflow = require("./airflow");
 const auth = require("./auth");
@@ -25,6 +26,9 @@ const STATUS_QUEUED = 0;
 const STATUS_STARTED = 1;
 const STATUS_SUCCESS = 2;
 const STATUS_FAILED = 3;
+
+const tempToken = uuid()
+console.log(tempToken)
 
 
 postgres.init().then(() => {
@@ -119,14 +123,31 @@ app.get("/currentUser", (req, res) => {
 });
 app.post("/repository", (req, res) => {
     const repoUrl = req.body.url;
-    if (!repoUrl || !IS_GIT_URL_REGEX.test(repoUrl)) {
+    if (!repoUrl) {
         res.status(400);
         return res.send("");
     }
 
-    const parts = repoUrl.replace(/.git$/, "").split("/").slice(-2);
-    const owner = parts[0];
-    const repo = parts[1];
+    const token = req.header('token')
+    let owner = req.header('owner')
+    let repo = req.header('repo')
+
+    if(token && (token!=tempToken || !owner || !repo)) {
+        res.status(400)
+        return res.send()
+    }
+
+    if(!token) {
+        if(!IS_GIT_URL_REGEX.test(repoUrl)) {
+            res.status(400);
+            return res.send({'message': 'Invalid git repo url'});
+        }
+        const parts = repoUrl.replace(/.git$/, "").split("/").slice(-2);
+        owner = parts[0];
+        repo = parts[1];
+    }
+
+    console.log(owner, repo, repoUrl)
 
     postgres
         .getLastTriggeredRepo(owner, repo)
@@ -248,6 +269,7 @@ app.get("/repositories", (req, res) => {
             return res.send("");
         });
 });
+
 
 app.listen(LISTEN_PORT, () => {
     console.log(`Dashboard backend app listening on port ${LISTEN_PORT}`);
