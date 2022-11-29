@@ -1,6 +1,9 @@
-const MAX_JOBS_THRESHOLD = 2;
-const MONITOR_INTERVAL = 1000 * 60 * 10;
-const MIN_TOKEN_RATE_REMAINING = 20000
+const MAX_JOBS_THRESHOLD = process.env["MAX_JOBS"] || 5
+const MONITOR_INTERVAL = 1000 * 60 * 0.5;
+const MIN_TOKEN_RATE_REMAINING = process.env["MIN_TOKEN_RATE_LIMIT"] || 25000
+
+console.log('MAX_JOBS:', MAX_JOBS_THRESHOLD)
+console.log('MIN_TOKEN_RATE_REMAINGING', MIN_TOKEN_RATE_REMAINING)
 
 
 const postgres = require('./postgres')
@@ -77,7 +80,7 @@ function check() {
             ]
             const selectedField = ['owner', 'repo', 'url', 'dag_run_id'].concat(STATUS_KEYS)
             const pickQueueJobSql = `SELECT ${selectedField.join(', ')} FROM triggered_git_repos
-                                                WHERE job_status='queued' ORDER BY created_at LIMIT 1`;
+                                                WHERE job_status='queued' ORDER BY created_at DESC LIMIT 1`;
             return postgres.client.query(pickQueueJobSql).then(result => {
                 if (result.rows.length) {
                     const row = result.rows[0]
@@ -119,8 +122,10 @@ function check() {
                 }
             })
         }
+    }).then(result=>{
+        console.log(result)
     }).catch(e => {
-        console.log(e)
+        console.log(e.message)
     })
 
     // postgres.client.query("SELECT count(*) from triggered_git_repos WHERE job_status='started'").then(result => {
