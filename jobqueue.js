@@ -1,5 +1,5 @@
 const MAX_JOBS_THRESHOLD = process.env["MAX_JOBS"] || 5
-const MONITOR_INTERVAL = 1000 * 60 * 0.5;
+const MONITOR_INTERVAL = 1000 * 60 * (process.env["MONITOR_INTERVAL"] || 2)
 const MIN_TOKEN_RATE_REMAINING = process.env["MIN_TOKEN_RATE_LIMIT"] || 25000
 
 console.log('MAX_JOBS:', MAX_JOBS_THRESHOLD)
