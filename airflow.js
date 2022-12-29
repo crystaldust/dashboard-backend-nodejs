@@ -160,9 +160,10 @@ function getVariable(variableName) {
     })
 }
 
-function runTrackGitRepo(owner, repo, url, dagRunId=null) {
+function runTrackGitRepo(owner, repo, url, dagRunId = '') {
     return new Promise((resolve, reject) => {
-        let dag_run_id = dagRunId ? dagRunId : `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
+        let dag_run_id = dagRunId ? dagRunId
+            : `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
         axios
             .post(
                 `${AIRFLOW_API_URL}/api/v1/dags/git_track_repo/dagRuns`,
