@@ -4,7 +4,7 @@ const pgClient = new Client();
 pgClient.connect();
 
 function init() {
-    pgClient
+    return pgClient
         .query(
             `
 create table if not exists triggered_git_repos
@@ -43,7 +43,7 @@ create table if not exists triggered_git_repos
         });
 }
 
-function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0, 0, 0, 0, 0, 0, 0]) {
+function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0, 0, 0, 0, 0, 0, 0], jobStatus="started") {
     const values = [
         new Date(),
         dagId,
@@ -51,7 +51,7 @@ function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0
         owner,
         repo,
         url,
-        "started"
+        jobStatus
     ];
     values.push(...statuses)
 
@@ -122,3 +122,4 @@ module.exports.getTriggeredRepos = getTriggeredRepos;
 module.exports.numTriggeredRepos = numTriggeredRepos;
 module.exports.getLastTriggeredRepo = getLastTriggeredRepo;
 module.exports.isRepoJobSuccessful = isRepoJobSuccessful;
+module.exports.client = pgClient;

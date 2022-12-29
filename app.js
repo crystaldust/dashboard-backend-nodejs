@@ -1,6 +1,7 @@
 const ck = require("./ck");
 const airflow = require("./airflow");
 const auth = require("./auth");
+const jobqueue = require('./jobqueue')
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -9,7 +10,7 @@ const postgres = require("./postgres");
 const TrackRepoError = require("./errors").TrackRepoError;
 
 const IS_GIT_URL_REGEX =
-    /(git@|http:\/\/|https:\/\/)[\w\.-:]+[\/:]{1}[~\w-]+\/{1}[~\w-]+(.git){0,1}$/
+    /(git:\/\/|git@|http:\/\/|https:\/\/)[.0-9a-zA-Z_\-~:]+[\/:]{1}[0-9a-zA-Z_\-~]+\/{1}[0-9a-zA-Z_\-~.]+(.git){0,1}$/
 const LISTEN_PORT = process.env["PORT"];
 const CK_HOST = process.env["CK_HOST"];
 const CK_PORT = process.env["CK_PORT"];
@@ -20,10 +21,16 @@ console.log('connecting ck to ', CK_HOST)
 const app = express();
 
 const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
-const MAX_JOBS_THRESHOLD = 3;
+const STATUS_QUEUED = 0;
+const STATUS_STARTED = 1;
+const STATUS_SUCCESS = 2;
+const STATUS_FAILED = 3;
 
 
-postgres.init();
+postgres.init().then(() => {
+    jobqueue.launch();
+})
+
 
 const allowedOrigins = [];
 const ALLOWED_ORIGINS = process.env["ALLOWED_ORIGINS"];
@@ -135,38 +142,18 @@ app.post("/repository", (req, res) => {
                 );
             }
 
-            return postgres.numTriggeredRepos().then(numTrackedRepos => {
+            // Check conditions, if pass, inherits states, mark job_status as 'started'(failed state =>1 as started), then trigger the DAG
+            // if not passed, also inherits states, mark job_status as 'queueed'(failed state =>0 as created/queued). then do nothing(waiting for
+            // the polling to monitor and trigger the DAGs someday)
+            return jobqueue.checkConditions([[]], [jobqueue.checkStartedJobs]).then(passed => {
                 return {
+                    conditionsSatisfied: passed,
                     lastTriggeredJob,
-                    numTrackedRepos
                 }
             })
         })
         .then(results => {
-            const {lastTriggeredJob, numTrackedRepos} = results
-            if (numTrackedRepos <= MAX_JOBS_THRESHOLD) {
-                const now = new Date();
-                return airflow.runTrackGitRepo(owner, repo, repoUrl, now).then(dagResult => {
-                    return {
-                        lastTriggeredJob,
-                        dagResult
-                    }
-                })
-            }
-
-            return {
-                lastTriggeredJob
-            }
-
-            // just insert the job(with status 'queued') into pg, waiting for the loop to fetch it and
-            //    actually run airflow DAG
-        })
-        .then((results) => {
-            const {lastJobInfo, dagResult} = results
-
-
-            // Inherit the last job's statuses
-
+            const {conditionsSatisfied, lastTriggeredJob} = results;
             const STATUS_KEYS = [
                 "gits_status",
                 "github_commits_status",
@@ -177,37 +164,42 @@ app.post("/repository", (req, res) => {
                 "ck_transfer_status",
                 "ck_aggregation_status",
             ]
+            let lastJobStatuses = STATUS_KEYS.map(() => 0)
+            let jobStatus = conditionsSatisfied ? 'started' : 'queued';
+            const dagRunId = `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
 
-            let lastJobStatuses = STATUS_KEYS.map(() => 1)
 
 
-            // last job info should be inherited even if the job is queued
-
-            let dagRunId = ""
-            if (dagResult) {
-                dagRunId = dagResult.dag_run_id
-            } else { // DAG not run, we should create a queued
-                lastJobStatuses = STATUS_KEYS.map(() => 0)
-            }
-
-            if (lastJobInfo) {
+            if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
-                    return lastJobInfo[key] === 2 ? 2 : 0;
+                    return lastTriggeredJob[key] === STATUS_SUCCESS
+                        ? STATUS_SUCCESS
+                        : (conditionsSatisfied ? STATUS_STARTED : STATUS_QUEUED);
                 })
             }
 
+            const promises = [
+                postgres.insertTriggeredRepo(
+                    "git_track_repo",
+                    dagRunId,
+                    owner,
+                    repo,
+                    repoUrl,
+                    lastJobStatuses,
+                    jobStatus)
+            ];
 
+            if (conditionsSatisfied) {
+                promises.push(
+                    airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
+                )
+            }
 
-            return postgres.insertTriggeredRepo(
-                "git_track_repo",
-                dagRunId,
-                owner,
-                repo,
-                repoUrl,
-                lastJobStatuses
-            );
+            return Promise.all(promises);
         })
-        .then(() => {
+        .then((results) => {
+            // TODO Instead of just logging, maybe we should also change status_code by results
+            console.log(results);
             res.status(200);
             return res.send();
         })
