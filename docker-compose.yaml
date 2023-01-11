@@ -4,7 +4,7 @@ services:
   dashboard-backend-nodejs:
     container_name: dashboard-backend-nodejs
     hostname: dashboard-backend-nodejs
-    image: ossknow/dashboard-backend-nodejs:latest
+    image: oss-know/dashboard-backend-nodejs:latest
     restart: always
     # 跨多个Docker-compose配置文件，services在一个网桥
     networks:
