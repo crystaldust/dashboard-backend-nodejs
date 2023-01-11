@@ -1,7 +1,7 @@
 #!/bin/bash
 TAG=$1
 if [ -z "$1" ]; then
-	TAG=dev
+	TAG=latest
 fi
 
 ORG=$2
