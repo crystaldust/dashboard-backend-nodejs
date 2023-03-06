@@ -1,10 +1,9 @@
-const {Client} = require("pg");
+const Pool = require("pg-pool");
 
-const pgClient = new Client();
-pgClient.connect();
+const pool = new Pool();
 
 function init() {
-    return pgClient
+    return pool
         .query(
             `
 create table if not exists triggered_git_repos
@@ -59,7 +58,7 @@ function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0
     const sql =
         "insert into triggered_git_repos values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)";
 
-    return pgClient.query(sql, values);
+    return pool.query(sql, values);
 }
 
 function getTriggeredRepos() {
@@ -86,17 +85,17 @@ function getTriggeredRepos() {
         "         and origin.repo = temp.repo\n" +
         "         and origin.job_status != 'success'"
 
-    return pgClient.query(sql);
+    return pool.query(sql);
 }
 
 function getLastTriggeredRepo(owner, repo) {
-    return pgClient.query(
+    return pool.query(
         `select * from triggered_git_repos where owner='${owner}' and repo='${repo}' order by created_at desc limit 1`
     );
 }
 
 function numTriggeredRepos() {
-    return pgClient.query(
+    return pool.query(
         `select count(*) from triggered_git_repos where job_status = 'started'`
     ).then(result=>{
         return parseInt(result.rows[0].count)
@@ -122,4 +121,4 @@ module.exports.getTriggeredRepos = getTriggeredRepos;
 module.exports.numTriggeredRepos = numTriggeredRepos;
 module.exports.getLastTriggeredRepo = getLastTriggeredRepo;
 module.exports.isRepoJobSuccessful = isRepoJobSuccessful;
-module.exports.client = pgClient;
+module.exports.client = pool;
