@@ -9,7 +9,6 @@ ADD auth.js ./
 ADD github.js ./
 ADD jobqueue.js ./
 ADD app.js ./
-ADD package-lock.json ./
 ADD package.json ./
 ADD yarn.lock ./
 ADD LAST_GIT_COMMIT ./
