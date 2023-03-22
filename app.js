@@ -124,7 +124,9 @@ app.post("/repository", (req, res) => {
         return res.send("");
     }
 
-    const parts = repoUrl.replace(/.git$/, "").split("/").slice(-2);
+    const unifiedRepoUrl = repoUrl.replace(/.git$/, "")
+
+    const parts = unifiedRepoUrl.split("/").slice(-2);
     const owner = parts[0];
     const repo = parts[1];
 
@@ -170,7 +172,6 @@ app.post("/repository", (req, res) => {
             const dagRunId = `git_track_repo_${owner}__${repo}__${new Date().toISOString()}`;
 
 
-
             if (lastTriggeredJob) {
                 lastJobStatuses = STATUS_KEYS.map(key => {
                     return lastTriggeredJob[key] === STATUS_SUCCESS
@@ -185,14 +186,14 @@ app.post("/repository", (req, res) => {
                     dagRunId,
                     owner,
                     repo,
-                    repoUrl,
+                    unifiedRepoUrl,
                     lastJobStatuses,
                     jobStatus)
             ];
 
             if (conditionsSatisfied) {
                 promises.push(
-                    airflow.runTrackGitRepo(owner, repo, repoUrl, dagRunId)
+                    airflow.runTrackGitRepo(owner, repo, unifiedRepoUrl, dagRunId)
                 )
             }
 
