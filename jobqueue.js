@@ -21,9 +21,9 @@ function checkTokens() {
         const checkPromises = tokens.map(token => github.getTokenRemaining(token))
         return Promise.all(checkPromises).then(rates => {
             let totalRemaining = 0
-            console.debug(JSON.stringify(rates, null, 2))
+            // console.debug(JSON.stringify(rates, null, 2))
             rates.map(rate => totalRemaining += (rate && rate.remaining) || 0)
-            console.debug(totalRemaining)
+            console.debug("tokens remaining:", totalRemaining)
             return totalRemaining >= MIN_TOKEN_RATE_REMAINING
         }).catch(e => {
             console.log('Failed to get token limits:', e)
@@ -123,7 +123,7 @@ function check() {
             })
         }
     }).then(result=>{
-        console.log(result)
+        // console.log(result)
     }).catch(e => {
         console.log(e.message)
     })
