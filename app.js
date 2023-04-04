@@ -16,11 +16,12 @@ const CK_HOST = process.env["CK_HOST"];
 const CK_PORT = process.env["CK_PORT"];
 const CK_USER = process.env["CK_USER"];
 const CK_PASS = process.env["CK_PASS"];
+const CK_DATABASE = process.env["CK_DATABASE"];
 console.log('connecting ck to ', CK_HOST)
 
 const app = express();
 
-const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS);
+const ckClient = new ck.CKClient(CK_HOST, CK_PORT, CK_USER, CK_PASS, CK_DATABASE);
 const STATUS_QUEUED = 0;
 const STATUS_STARTED = 1;
 const STATUS_SUCCESS = 2;

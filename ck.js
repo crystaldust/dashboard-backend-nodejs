@@ -1,12 +1,15 @@
 const ClickHouse = require("@apla/clickhouse");
 
 class CKClient {
-    constructor(host, port, user, password) {
+    constructor(host, port, user, password, database = "default") {
         this.ch = new ClickHouse({
             host,
             port,
             user,
             password,
+            queryOptions: {
+                database,
+            },
         });
     }
 
@@ -28,9 +31,9 @@ class CKClient {
         });
 
         stream.on("error", (err) => {
-            console.log('stream err:', err)
-            callback(null, null, err)
-        })
+            console.log("stream err:", err);
+            callback(null, null, err);
+        });
     }
 }
 
