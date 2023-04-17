@@ -202,7 +202,7 @@ app.post("/repository", (req, res) => {
         })
         .then((results) => {
             // TODO Instead of just logging, maybe we should also change status_code by results
-            console.log(results);
+            // console.log(results);
             res.status(200);
             return res.send();
         })
