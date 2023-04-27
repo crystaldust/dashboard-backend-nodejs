@@ -42,18 +42,17 @@ create table if not exists triggered_git_repos
         });
 }
 
-function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0, 0, 0, 0, 0, 0, 0], jobStatus="started") {
-    const values = [
-        new Date(),
-        dagId,
-        dagRunId,
-        owner,
-        repo,
-        url,
-        jobStatus
-    ];
-    values.push(...statuses)
-
+function insertTriggeredRepo(
+    dagId,
+    dagRunId,
+    owner,
+    repo,
+    url,
+    statuses = [0, 0, 0, 0, 0, 0, 0, 0],
+    jobStatus = "started"
+) {
+    const values = [new Date(), dagId, dagRunId, owner, repo, url, jobStatus];
+    values.push(...statuses);
 
     const sql =
         "insert into triggered_git_repos values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)";
@@ -63,11 +62,11 @@ function insertTriggeredRepo(dagId, dagRunId, owner, repo, url, statuses = [0, 0
 
 function getTriggeredRepos() {
     // let sql = "select * from triggered_git_repos";
-    let sql = "select origin.owner,\n" +
+    let sql =
+        "select origin.owner,\n" +
         "       origin.repo,\n" +
         "       origin.url,\n" +
         "       origin.created_at,\n" +
-        "       origin.job_status,\n" +
         "       origin.job_status,\n" +
         "       origin.gits_status,\n" +
         "       origin.github_commits_status,\n" +
@@ -83,7 +82,7 @@ function getTriggeredRepos() {
         "     on origin.created_at = temp.latest_created_at\n" +
         "         and origin.owner = temp.owner\n" +
         "         and origin.repo = temp.repo\n" +
-        "         and origin.job_status != 'success'"
+        "         and origin.job_status != 'success'";
 
     return pool.query(sql);
 }
@@ -95,24 +94,34 @@ function getLastTriggeredRepo(owner, repo) {
 }
 
 function numTriggeredRepos() {
-    return pool.query(
-        `select count(*) from triggered_git_repos where job_status = 'started'`
-    ).then(result=>{
-        return parseInt(result.rows[0].count)
-    })
+    return pool
+        .query(
+            `select count(*) from triggered_git_repos where job_status = 'started'`
+        )
+        .then((result) => {
+            return parseInt(result.rows[0].count);
+        });
 }
 
-const RES_TYPES = ["gits", "github_commits", "github_pull_requests", "github_issues",
-    "github_issues_comments", "github_issues_timeline", "ck_transfer", "ck_aggregation"]
+const RES_TYPES = [
+    "gits",
+    "github_commits",
+    "github_pull_requests",
+    "github_issues",
+    "github_issues_comments",
+    "github_issues_timeline",
+    "ck_transfer",
+    "ck_aggregation",
+];
 
 function isRepoJobSuccessful(job) {
     for (let i = 0; i < RES_TYPES.length; ++i) {
-        const resType = RES_TYPES[i]
+        const resType = RES_TYPES[i];
         if (`${resType}_status` != 2) {
-            return false
+            return false;
         }
     }
-    return true
+    return true;
 }
 
 module.exports.init = init;
